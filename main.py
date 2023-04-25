@@ -18,17 +18,20 @@ timeString = datetime.now().strftime('%Y%m%d_%H%M%S')
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     bot.reply_to(message,
-                 "Привет! Я бот, который создает облако слов для песен любимого исполнителя. Чтобы начать, отправь мне имя исполнителя и желаемое количество песен в формате: 'исполнитель:количество песен'.")
+                 "Привет! Я бот, который создает облако слов для песен любимого исполнителя. "
+                 "Чтобы начать, отправь мне имя исполнителя и желаемое количество песен в формате:"
+                 " 'исполнитель:количество песен'.")
 
 
-# Основной код (получение данных от пользователя, парсинг песен, их очистка, создание изображения и отправка пользователю)
+# Основной код (получение данных от пользователя, парсинг песен, очистка, создание изображения и отправка пользователю)
 @bot.message_handler(func=lambda message: True)
 def generate_wordcloud(message):
     # Ввод информации
     input_text = message.text.lower().split(':')
     if len(input_text) != 2 or '' in input_text:
         bot.reply_to(message,
-                     "Некорректный формат ввода. Пожалуйста, отправьте сообщение в формате: 'исполнитель:количество песен'.")
+                     "Некорректный формат ввода. "
+                     "Пожалуйста, отправьте сообщение в формате: 'исполнитель:количество песен'.")
         return
     artist_CONSTANT, number_of_songs_str = input_text
     try:
@@ -42,18 +45,19 @@ def generate_wordcloud(message):
     genius = lyricsgenius.Genius(config.GENIUS_TOKEN, timeout=20, sleep_time=0)
     try:
         artist = genius.search_artist(artist_CONSTANT, include_features=False, max_songs=number_of_songs)
-    except lyricsgenius.exceptions.ArtistNotFoundException:
+    except lyricsgenius.exceptions.ArtistNotFoundException:  # обработать
         bot.reply_to(message,
-                     "Исполнитель не найден. Пожалуйста, проверьте правильность написания его имени и повторите попытку.")
+                     "Исполнитель не найден. "
+                     "Пожалуйста, проверьте правильность написания его имени и повторите попытку.")
         return
     except Exception as e:
         print(f'An error occurred: {e}')
 
     bot.reply_to(message,
-                 f"Произведен поиск и анализ {number_of_songs} песен  исполнителя '{' '.join(str(artist).split()[:-2])[:-1]}'")
+                 f"Произведен поиск и анализ {number_of_songs} песен  исполнителя "
+                 f"'{' '.join(str(artist).split()[:-2])[:-1]}'")
 
     # Запись в файл
-
 
     with open(artist_CONSTANT + '-lyrics-' + '(' + str(number_of_songs) + ')-' + timeString + '.txt', 'w',
               encoding='utf-8') as f:
@@ -134,7 +138,7 @@ def generate_wordcloud(message):
 
 bot.polling(none_stop=True)
 
-# import nltk
+# import nltk # библиотека для стоп слов
 # nltk.download('stopwords')
 # import nltk
 # from nltk.corpus import stopwords
