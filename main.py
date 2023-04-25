@@ -9,25 +9,26 @@ import telebot
 import config
 import matplotlib
 
-
 matplotlib.use('agg')
 bot = telebot.TeleBot(config.TELEGRAM_TOKEN)
 timeString = datetime.now().strftime('%Y%m%d_%H%M%S')
 
 
-
-
+# Приветственное
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
-    bot.reply_to(message, "Привет! Я бот, который создает облако слов для песен любимого исполнителя. Чтобы начать, отправь мне имя исполнителя и желаемое количество песен в формате: 'исполнитель:количество песен'.")
+    bot.reply_to(message,
+                 "Привет! Я бот, который создает облако слов для песен любимого исполнителя. Чтобы начать, отправь мне имя исполнителя и желаемое количество песен в формате: 'исполнитель:количество песен'.")
 
 
+# Основной код (получение данных от пользователя, парсинг песен, их очистка, создание изображения и отправка пользователю)
 @bot.message_handler(func=lambda message: True)
 def generate_wordcloud(message):
-    # Parse the user input to get the artist name and number of songs
+    # Ввод информации
     input_text = message.text.lower().split(':')
-    if len(input_text) != 2:
-        bot.reply_to(message, "Некорректный формат ввода. Пожалуйста, отправьте сообщение в формате: 'исполнитель:количество песен'.")
+    if len(input_text) != 2 or '' in input_text:
+        bot.reply_to(message,
+                     "Некорректный формат ввода. Пожалуйста, отправьте сообщение в формате: 'исполнитель:количество песен'.")
         return
     artist_CONSTANT, number_of_songs_str = input_text
     try:
@@ -36,25 +37,40 @@ def generate_wordcloud(message):
         bot.reply_to(message, "Некорректный формат ввода количества песен.")
         return
 
-    # Search for the artist and download lyrics for the specified number of songs
+    # Поиск артиста
     morph = pymorphy2.MorphAnalyzer()
     genius = lyricsgenius.Genius(config.GENIUS_TOKEN, timeout=20, sleep_time=0)
     try:
         artist = genius.search_artist(artist_CONSTANT, include_features=False, max_songs=number_of_songs)
-    except:
-        bot.reply_to(message,"Исполнитель не найден. Пожалуйста, проверьте правильность написания его имени и повторите попытку.")
+    except lyricsgenius.exceptions.ArtistNotFoundException:
+        bot.reply_to(message,
+                     "Исполнитель не найден. Пожалуйста, проверьте правильность написания его имени и повторите попытку.")
         return
-    # Extract the text from the lyrics and normalize the words
+    except Exception as e:
+        print(f'An error occurred: {e}')
 
-    bot.reply_to(message, f"Произведен поиск и анализ {number_of_songs} песен  исполнителя '{' '.join(str(artist).split()[:-2])[:-1]}'")
+    bot.reply_to(message,
+                 f"Произведен поиск и анализ {number_of_songs} песен  исполнителя '{' '.join(str(artist).split()[:-2])[:-1]}'")
 
-    with open(artist_CONSTANT + '-lyrics-' + '(' + str(number_of_songs) + ')-' + timeString + '.txt', 'w',encoding='utf-8') as f:
+    # Запись в файл
+
+
+    with open(artist_CONSTANT + '-lyrics-' + '(' + str(number_of_songs) + ')-' + timeString + '.txt', 'w',
+              encoding='utf-8') as f:
         for song in artist.songs:
             f.write(song.lyrics)
             f.write('\n')
         f.close()
 
-    f = open(artist_CONSTANT + '-lyrics-' + '(' + str(number_of_songs) + ')-' + timeString + '.txt', 'r', encoding='utf-8')
+    with open(artist_CONSTANT + '-lyrics-' + '(' + str(number_of_songs) + ')-' + timeString + '.txt', 'r') as file:
+        contents = file.read()
+
+    if not contents:
+        bot.reply_to(message, 'У этого исполнителя нет песен')
+        return
+
+    f = open(artist_CONSTANT + '-lyrics-' + '(' + str(number_of_songs) + ')-' + timeString + '.txt', 'r',
+             encoding='utf-8')
     textLines = f.read().splitlines()
 
     uniqueLines = []
@@ -64,9 +80,12 @@ def generate_wordcloud(message):
             uniqueLines.append(line)
             uniqueLines.append('\n')
 
+    # Очистка
+
     text = ''.join(uniqueLines)
     text = text.replace('Embed', ' ').replace(' ', '\n').lower()
-    text = text.replace('куплет', ' ').replace('припев', ' ').replace('аутро', ' ').replace('интро', ' ').replace('бридж',' ')
+    text = text.replace('куплет', ' ').replace('припев', ' ').replace('аутро', ' ').replace('интро', ' ').replace(
+        'бридж', ' ')
     text = re.findall('[А-Яа-яёЁ]+', text)
 
     normalizedWords = []
@@ -104,18 +123,16 @@ def generate_wordcloud(message):
     # сохраняем график в файл
     plt.savefig(artist_CONSTANT + '-RESULT-' + '(' + str(number_of_songs) + ')-' + timeString, dpi=300)
 
-    photo = open(artist_CONSTANT + '-RESULT-' + '(' + str(number_of_songs) + ')-' + timeString+'.png', 'rb')
+    photo = open(artist_CONSTANT + '-RESULT-' + '(' + str(number_of_songs) + ')-' + timeString + '.png', 'rb')
 
     # Отправляем фото пользователю
     bot.send_photo(message.chat.id, photo)
     photo.close()
 
-
-
     print("Готово!")
 
-bot.polling(none_stop=True)
 
+bot.polling(none_stop=True)
 
 # import nltk
 # nltk.download('stopwords')
@@ -124,5 +141,3 @@ bot.polling(none_stop=True)
 #
 # stops = set(stopwords.words('russian'))
 # print(stops)
-
-
