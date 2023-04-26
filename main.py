@@ -43,15 +43,15 @@ def generate_wordcloud(message):
     # Поиск артиста
     morph = pymorphy2.MorphAnalyzer()
     genius = lyricsgenius.Genius(config.GENIUS_TOKEN, timeout=20, sleep_time=0)
-    try:
-        artist = genius.search_artist(artist_CONSTANT, include_features=False, max_songs=number_of_songs)
-    except lyricsgenius.exceptions.ArtistNotFoundException:  # обработать
-        bot.reply_to(message,
-                     "Исполнитель не найден. "
-                     "Пожалуйста, проверьте правильность написания его имени и повторите попытку.")
-        return
-    except Exception as e:
-        print(f'An error occurred: {e}')
+    #try:
+    artist = genius.search_artist(artist_CONSTANT, include_features=False, max_songs=number_of_songs)
+    # except lyricsgenius.exceptions.ArtistNotFoundException:  # обработать
+    #     bot.reply_to(message,
+    #                  "Исполнитель не найден. "
+    #                  "Пожалуйста, проверьте правильность написания его имени и повторите попытку.")
+    #     return
+    # except Exception as e:
+    #     print(f'An error occurred: {e}')
 
     bot.reply_to(message,
                  f"Произведен поиск и анализ {number_of_songs} песен  исполнителя "
@@ -66,7 +66,8 @@ def generate_wordcloud(message):
             f.write('\n')
         f.close()
 
-    with open(artist_CONSTANT + '-lyrics-' + '(' + str(number_of_songs) + ')-' + timeString + '.txt', 'r') as file:
+    with open(artist_CONSTANT + '-lyrics-' + '(' + str(number_of_songs) + ')-' + timeString + '.txt', 'r',
+              encoding='utf-8') as file:
         contents = file.read()
 
     if not contents:
@@ -136,7 +137,7 @@ def generate_wordcloud(message):
     print("Готово!")
 
 
-bot.polling(none_stop=True)
+bot.infinity_polling()
 
 # import nltk # библиотека для стоп слов
 # nltk.download('stopwords')
