@@ -14,18 +14,72 @@ bot = telebot.TeleBot(config.TELEGRAM_TOKEN)
 timeString = datetime.now().strftime('%Y%m%d_%H%M%S')
 
 
+def write_to_file(artist_name, number_of_songs, artist):
+    with open(artist_name + '-lyrics-' + '(' + str(number_of_songs) + ')-' + timeString + '.txt', 'w',
+              encoding='utf-8') as f:
+        for song in artist.songs:
+            f.write(song.lyrics)
+            f.write('\n')
+        f.close()
+
+    with open(artist_name + '-lyrics-' + '(' + str(number_of_songs) + ')-' + timeString + '.txt', 'r',
+              encoding='utf-8') as file:
+        contents = file.read()
+        return contents
+
+
+def cleansing(text_lines):
+    unique_lines = []
+
+    for line in text_lines:
+        if 'Lyrics' not in line:
+            unique_lines.append(line)
+            unique_lines.append('\n')
+    text = ''.join(unique_lines)
+    text = text.replace('Embed', ' ').replace(' ', '\n').lower()
+    text = text.replace('куплет', ' ').replace('припев', ' ').replace('аутро', ' ').replace('интро', ' ').replace(
+        'бридж', ' ')
+    text = re.findall('[А-Яа-яёЁ]+', text)
+    return text
+
+
+def normalizing(morph, text):
+    normalized_words = []
+    for word in text:
+        if len(word) > 2:
+            p = morph.parse(word)[0]
+            if 'NOUN' in str(p.tag):
+                result = morph.parse(word)[0].normal_form
+                normalized_words.append(result)
+    return normalized_words
+
+
+def cloud(text):
+    wordcloud = WordCloud(width=800, height=800,
+                          background_color='white',
+                          min_font_size=10).generate(text)
+
+    # отображаем облако слов на графике
+    plt.figure(figsize=(8, 8), facecolor=None)
+    plt.imshow(wordcloud)
+    plt.axis("off")
+    plt.tight_layout(pad=0)
+    return plt
+
+
 # Приветственное
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     bot.reply_to(message,
-                 f"Привет, {message.from_user.first_name}! Я - бот, который создает облако слов для песен любимого исполнителя. "
-                 "Чтобы начать, отправь мне имя исполнителя и желаемое количество песен в формате:"
-                 " 'исполнитель:количество песен'.")
+                 f'Привет, {message.from_user.first_name}'
+                 '! Я - бот, который создает облако слов для песен любимого исполнителя. '
+                 'Чтобы начать, отправь мне имя исполнителя и желаемое количество песен в формате:'
+                 ' \'исполнитель:количество песен\'.')
 
 
 # Основной код (получение данных от пользователя, парсинг песен, очистка, создание изображения и отправка пользователю)
 @bot.message_handler(func=lambda message: True)
-def generate_wordcloud(message):
+def generate_wordcloud_artist(message):
     # Ввод информации
     input_text = message.text.lower().split(':')
     if len(input_text) != 2 or '' in input_text:  # проверка на неправильный ввод
@@ -59,16 +113,7 @@ def generate_wordcloud(message):
 
     # Запись в файл
 
-    with open(artist_name + '-lyrics-' + '(' + str(number_of_songs) + ')-' + timeString + '.txt', 'w',
-              encoding='utf-8') as f:
-        for song in artist.songs:
-            f.write(song.lyrics)
-            f.write('\n')
-        f.close()
-
-    with open(artist_name + '-lyrics-' + '(' + str(number_of_songs) + ')-' + timeString + '.txt', 'r',
-              encoding='utf-8') as file:
-        contents = file.read()
+    contents = write_to_file(artist_name, number_of_songs, artist)
 
     if not contents:
         bot.reply_to(message, 'У этого исполнителя нет песен')
@@ -76,36 +121,18 @@ def generate_wordcloud(message):
 
     f = open(artist_name + '-lyrics-' + '(' + str(number_of_songs) + ')-' + timeString + '.txt', 'r',
              encoding='utf-8')
-    textLines = f.read().splitlines()
+    text_lines = f.read().splitlines()
+    f.close()
 
-    uniqueLines = []
+    text = cleansing(text_lines)
 
-    for line in textLines:
-        if 'Lyrics' not in line:
-            uniqueLines.append(line)
-            uniqueLines.append('\n')
+    normalized_words = normalizing(morph, text)
 
-    # Очистка
-
-    text = ''.join(uniqueLines)
-    text = text.replace('Embed', ' ').replace(' ', '\n').lower()
-    text = text.replace('куплет', ' ').replace('припев', ' ').replace('аутро', ' ').replace('интро', ' ').replace(
-        'бридж', ' ')
-    text = re.findall('[А-Яа-яёЁ]+', text)
-
-    normalizedWords = []
-    for word in text:
-        if len(word) > 2:
-            p = morph.parse(word)[0]
-            if 'NOUN' in str(p.tag):
-                result = morph.parse(word)[0].normal_form
-                normalizedWords.append(result)
-
-    sortedWords = Counter(normalizedWords).most_common()
+    sorted_words = Counter(normalized_words).most_common()
 
     with open(artist_name + '-RESULT-' + '(' + str(number_of_songs) + ')-' + timeString + '.txt', 'w',
               encoding='utf-8') as f:
-        for word in sortedWords:
+        for word in sorted_words:
             f.write(str(word).replace('(\'', '').replace('\', ', ' - ').replace(')', '').replace('деньга', 'деньги'))
             f.write('\n')
 
@@ -115,18 +142,10 @@ def generate_wordcloud(message):
         text = f.read()
 
     # создаем объект WordCloud с заданными параметрами
-    wordcloud = WordCloud(width=800, height=800,
-                          background_color='white',
-                          min_font_size=10).generate(text)
-
-    # отображаем облако слов на графике
-    plt.figure(figsize=(8, 8), facecolor=None)
-    plt.imshow(wordcloud)
-    plt.axis("off")
-    plt.tight_layout(pad=0)
+    pict = cloud(text)
 
     # сохраняем график в файл
-    plt.savefig(artist_name + '-RESULT-' + '(' + str(number_of_songs) + ')-' + timeString, dpi=300)
+    pict.savefig(artist_name + '-RESULT-' + '(' + str(number_of_songs) + ')-' + timeString, dpi=300)
 
     photo = open(artist_name + '-RESULT-' + '(' + str(number_of_songs) + ')-' + timeString + '.png', 'rb')
 
@@ -137,7 +156,8 @@ def generate_wordcloud(message):
     print("Готово!")
 
 
-bot.infinity_polling()
+if __name__ == '__main__':
+    bot.infinity_polling()
 
 # import nltk # библиотека для стоп слов
 # nltk.download('stopwords')
@@ -154,3 +174,4 @@ bot.infinity_polling()
 # 3) Не нашелся такой исполнитель(Лобода)
 # 4) Нет песен у этого исполнителя
 
+#  добавить файлы. Человек пишет /start. Потом выбирает файл или артист. Если выбран артист - вызывается функция
