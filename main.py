@@ -8,25 +8,30 @@ import matplotlib.pyplot as plt
 from wordcloud import WordCloud
 import telebot
 import config
-import asyncio
+import os
+# import asyncio
 
 matplotlib.use('agg')
 bot = telebot.TeleBot(config.TELEGRAM_TOKEN)
 timeString = datetime.now().strftime('%Y%m%d_%H%M%S')
 
 
-def write_to_file(artist_name, number_of_songs, artist):
-    with open(artist_name + '-lyrics-' + '(' + str(number_of_songs) + ')-' + timeString + '.txt', 'w',
-              encoding='utf-8') as f:
-        for song in artist.songs:
-            f.write(song.lyrics)
-            f.write('\n')
-        f.close()
+def write_to_file(flag, artist_name= None, number_of_songs=None, artist=None, file_name=None):
+    if flag == 'artist':
+        with open(artist_name + '-lyrics-' + '(' + str(number_of_songs) + ')-' + timeString + '.txt', 'w',
+                  encoding='utf-8') as f:
+            for song in artist.songs:
+                f.write(song.lyrics)
+                f.write('\n')
 
-    with open(artist_name + '-lyrics-' + '(' + str(number_of_songs) + ')-' + timeString + '.txt', 'r',
-              encoding='utf-8') as file:
-        contents = file.read()
-        return contents
+        with open(artist_name + '-lyrics-' + '(' + str(number_of_songs) + ')-' + timeString + '.txt', 'r',
+                  encoding='utf-8') as f:
+            contents = f.read()
+    elif flag == 'file':
+        with open(file_name, 'r', encoding='utf-8') as f:
+            contents = f.read()
+
+    return contents
 
 
 def cleansing(text_lines):
@@ -67,15 +72,108 @@ def cloud(text):
     plt.tight_layout(pad=0)
     return plt
 
+def delete_file(file_name):
+    if os.path.exists(file_name):
+        os.remove(file_name)
+        print(f"Файл {file_name} успешно удален.")
+    else:
+        print(f"Файл {file_name} не существует.")
+
 
 # Приветственное
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     bot.reply_to(message,
                  f'Привет, {message.from_user.first_name}'
-                 '! Я - бот, который создает облако слов для песен любимого исполнителя. '
-                 'Чтобы начать, отправь мне имя исполнителя и желаемое количество песен в формате:'
-                 ' \'исполнитель:количество песен\'.')
+                 '! Я - бот, который создает облако слов для песен любимого исполнителя с сайта genius.com '
+                 'или из Вашего файла. '
+                 'Чтобы я проанализировал песни исполнителя, введите /artist.  '
+                 'Чтобы я проанализировал ваш файл, введите /file'
+                 # 'Чтобы начать, отправь мне имя исполнителя и желаемое количество песен в формате:'
+                 # ' \'исполнитель:количество песен\'.'
+                 )
+
+
+@bot.message_handler(commands=['artist'])
+def send_for_artist(message):
+    bot.reply_to(message, 'Чтобы начать, отправь мне имя исполнителя и желаемое количество песен в формате:'
+                          ' \'исполнитель:количество песен\'.')
+    bot.message_handler(func=lambda message: True)
+
+
+@bot.message_handler(commands=['file'])
+def send_for_file(message):
+    bot.reply_to(message, 'Чтобы начать, отправь мне файл в формате *.txt')
+    bot.message_handler(content_types=['document'])
+
+
+@bot.message_handler(content_types=['document'])
+def generate_wordcloud_file(message):
+
+    file_name = message.document.file_name
+
+    if not file_name.lower().endswith('.txt'):
+        bot.reply_to(message, "Пожалуйста, отправьте файл в формате .txt")
+        return
+
+    file_info = bot.get_file(message.document.file_id)
+    downloaded_file = bot.download_file(file_info.file_path)
+    with open(file_name, 'wb') as f:
+        f.write(downloaded_file)
+    bot.reply_to(message, "Скачиваю файл... Ожидайте")
+    contents = write_to_file(flag='file', file_name=file_name)
+
+    if not contents:
+        bot.reply_to(message, 'Файл - пустой')
+        return
+
+    f = open(file_name, 'r', encoding='utf-8')
+    text_lines = f.read().splitlines()
+    f.close()
+
+    text = cleansing(text_lines)
+    morph = pymorphy2.MorphAnalyzer()
+    normalized_words = normalizing(morph, text)
+    sorted_words = Counter(normalized_words).most_common()
+
+    file_name = file_name[:-4]
+
+    with open(file_name+'-RESULT'+'.txt', 'w', encoding='utf-8') as f:
+        for word in sorted_words:
+            f.write(str(word).replace('(\'', '').replace('\', ', ' - ').replace(')', ''))
+            f.write('\n')
+
+    with open(file_name+'-RESULT'+'.txt', 'r', encoding='utf-8') as f:
+        text = f.read()
+
+
+
+    if not text:
+        bot.reply_to(message, 'Вы отправили файл, не содержащий слов на русском. '
+                              'Данный бот умеет работать только со словами, написанными на русском языке. '
+                              'Повторите попытку')
+        return
+
+    # создаем объект WordCloud с заданными параметрами
+    pict = cloud(text)
+
+    # сохраняем график в файл
+    pict.savefig(file_name+'-RESULT', dpi=300)
+
+    photo = open(file_name+'-RESULT'+'.png', 'rb')
+
+    # Отправляем фото пользователю
+    bot.send_photo(message.chat.id, photo)
+    photo.close()
+
+    # Пример вызова функции для удаления файла 'example.txt'
+    delete_file(file_name + '-RESULT'+'.png')
+    delete_file(file_name + '.txt')
+    delete_file(file_name + '-RESULT' + '.txt')
+
+
+
+    print("Готово!")
 
 
 # Основной код (получение данных от пользователя, парсинг песен, очистка, создание изображения и отправка пользователю)
@@ -95,8 +193,8 @@ def generate_wordcloud_artist(message):
     except ValueError:
         bot.reply_to(message, "Некорректный формат ввода количества песен.")
         return
-
     bot.reply_to(message, "Принято в работу! Ожидайте.")
+
     # Поиск артиста
     morph = pymorphy2.MorphAnalyzer()
     genius = lyricsgenius.Genius(config.GENIUS_TOKEN, timeout=5, sleep_time=0)
@@ -114,7 +212,7 @@ def generate_wordcloud_artist(message):
 
     # Запись в файл
 
-    contents = write_to_file(artist_name, number_of_songs, artist)
+    contents = write_to_file(flag='artist', artist_name=artist_name, number_of_songs=number_of_songs, artist=artist)
 
     if not contents:
         bot.reply_to(message, 'У этого исполнителя нет песен')
@@ -142,6 +240,7 @@ def generate_wordcloud_artist(message):
               encoding='utf-8') as f:
         text = f.read()
 
+
     # создаем объект WordCloud с заданными параметрами
     pict = cloud(text)
 
@@ -156,31 +255,13 @@ def generate_wordcloud_artist(message):
 
     print("Готово!")
 
-
-async def handle_messages(messages):
-    for message in messages:
-        await bot.process_message(message)
-
-
-async def polling():
-    while True:
-        try:
-            await bot.polling(none_stop=True)
-        except Exception as e:
-            print(f"Error occurred while polling: {e}")
-            await asyncio.sleep(5)  # Wait for 5 seconds before retrying
+    delete_file(artist_name + '-RESULT-' + '(' + str(number_of_songs) + ')-' + timeString + '.png')
+    delete_file(artist_name + '-RESULT-' + '(' + str(number_of_songs) + ')-' + timeString + '.txt')
+    delete_file(artist_name + '-lyrics-' + '(' + str(number_of_songs) + ')-' + timeString + '.txt')
 
 
 if __name__ == '__main__':
-    loop = asyncio.new_event_loop()  # Создает новый цикл событий asyncio и сохраняет его в переменную loop.
-    # Цикл событий отвечает за выполнение асинхронных операций и обработку событий в асинхронном коде.
-    asyncio.set_event_loop(loop)  # Устанавливает созданный цикл событий в качестве текущего цикла.
-    # Это гарантирует, что все асинхронные операции будут выполняться в этом цикле.
-    loop.create_task(polling())  # Создает задачу для выполнения функции polling().
-    # Задача представляет собой асинхронную операцию, которая будет запущена и выполняться в цикле событий.
-    loop.run_until_complete(handle_messages(bot.get_updates()))  # Запускает выполнение функции
-    # handle_messages(bot.get_updates()) в цикле событий и блокирует основной поток выполнения до завершения функции.
-    # Это позволяет обрабатывать входящие сообщения бота и выполнять другие асинхронные операции в течение работы бота.
+    bot.infinity_polling()
 
 # import nltk # библиотека для стоп слов
 # nltk.download('stopwords')
@@ -194,7 +275,5 @@ if __name__ == '__main__':
 # Варианты ошибок:
 # 1) Неправильный ввод по шаблону исполнитель:количество песен
 # 2) Ввод количества песен не числовым значением
-# 3) Не нашелся такой исполнитель(Лобода)
+# 3) Не нашелся такой исполнитель
 # 4) Нет песен у этого исполнителя
-
-#  добавить файлы. Человек пишет /start. Потом выбирает файл или артист. Если выбран артист - вызывается функция
