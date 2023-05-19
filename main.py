@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 from wordcloud import WordCloud
 import telebot
 import config
+import asyncio
 
 matplotlib.use('agg')
 bot = telebot.TeleBot(config.TELEGRAM_TOKEN)
@@ -156,8 +157,30 @@ def generate_wordcloud_artist(message):
     print("Готово!")
 
 
+async def handle_messages(messages):
+    for message in messages:
+        await bot.process_message(message)
+
+
+async def polling():
+    while True:
+        try:
+            await bot.polling(none_stop=True)
+        except Exception as e:
+            print(f"Error occurred while polling: {e}")
+            await asyncio.sleep(5)  # Wait for 5 seconds before retrying
+
+
 if __name__ == '__main__':
-    bot.infinity_polling()
+    loop = asyncio.new_event_loop()  # Создает новый цикл событий asyncio и сохраняет его в переменную loop.
+    # Цикл событий отвечает за выполнение асинхронных операций и обработку событий в асинхронном коде.
+    asyncio.set_event_loop(loop)  # Устанавливает созданный цикл событий в качестве текущего цикла.
+    # Это гарантирует, что все асинхронные операции будут выполняться в этом цикле.
+    loop.create_task(polling())  # Создает задачу для выполнения функции polling().
+    # Задача представляет собой асинхронную операцию, которая будет запущена и выполняться в цикле событий.
+    loop.run_until_complete(handle_messages(bot.get_updates()))  # Запускает выполнение функции
+    # handle_messages(bot.get_updates()) в цикле событий и блокирует основной поток выполнения до завершения функции.
+    # Это позволяет обрабатывать входящие сообщения бота и выполнять другие асинхронные операции в течение работы бота.
 
 # import nltk # библиотека для стоп слов
 # nltk.download('stopwords')
