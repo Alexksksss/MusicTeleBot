@@ -94,7 +94,6 @@ def send_welcome(message):
                  'Чтобы я проанализировал ваш файл, введите /file')
 
 
-
 @bot.message_handler(commands=['artist'])
 def send_for_artist(message):
     bot.reply_to(message, 'Чтобы начать, отправь мне имя исполнителя и желаемое количество песен в формате:'
@@ -150,6 +149,9 @@ def generate_wordcloud_file(message):
         bot.reply_to(message, 'Вы отправили файл, не содержащий слов на русском. '
                               'Данный бот умеет работать только со словами, написанными на русском языке. '
                               'Повторите попытку')
+        delete_file(file_name + '.txt')
+        delete_file(file_name + '-RESULT' + '.txt')
+
         return
 
     # создаем объект WordCloud с заданными параметрами
@@ -193,7 +195,7 @@ def generate_wordcloud_artist(message):
 
     # Поиск артиста
     morph = pymorphy2.MorphAnalyzer()
-    genius = lyricsgenius.Genius(config.GENIUS_TOKEN, timeout=5, sleep_time=0)
+    genius = lyricsgenius.Genius(config.GENIUS_TOKEN, timeout=10, sleep_time=0)
     artist = genius.search_artist(artist_name, include_features=False, max_songs=number_of_songs)
 
     if ' '.join(str(artist).split()[:-2])[:-1] == '':
@@ -212,6 +214,7 @@ def generate_wordcloud_artist(message):
 
     if not contents:
         bot.reply_to(message, 'У этого исполнителя нет песен')
+        delete_file(artist_name + '-lyrics-' + '(' + str(number_of_songs) + ')-' + timeString + '.txt')
         return
 
     f = open(artist_name + '-lyrics-' + '(' + str(number_of_songs) + ')-' + timeString + '.txt', 'r',
@@ -235,6 +238,12 @@ def generate_wordcloud_artist(message):
     with open(artist_name + '-RESULT-' + '(' + str(number_of_songs) + ')-' + timeString + '.txt', 'r',
               encoding='utf-8') as f:
         text = f.read()
+
+    if not text:
+        bot.reply_to(message, 'У этого исполнителя нет на русском')
+        delete_file(artist_name + '-lyrics-' + '(' + str(number_of_songs) + ')-' + timeString + '.txt')
+        delete_file(artist_name + '-RESULT-' + '(' + str(number_of_songs) + ')-' + timeString + '.txt')
+        return
 
     # создаем объект WordCloud с заданными параметрами
     pict = cloud(text)
