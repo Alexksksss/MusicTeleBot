@@ -9,6 +9,7 @@ from wordcloud import WordCloud
 import telebot
 import config
 import os
+
 # import asyncio
 
 matplotlib.use('agg')
@@ -16,7 +17,7 @@ bot = telebot.TeleBot(config.TELEGRAM_TOKEN)
 timeString = datetime.now().strftime('%Y%m%d_%H%M%S')
 
 
-def write_to_file(flag, artist_name= None, number_of_songs=None, artist=None, file_name=None):
+def write_to_file(flag, artist_name=None, number_of_songs=None, artist=None, file_name=None):
     if flag == 'artist':
         with open(artist_name + '-lyrics-' + '(' + str(number_of_songs) + ')-' + timeString + '.txt', 'w',
                   encoding='utf-8') as f:
@@ -27,6 +28,7 @@ def write_to_file(flag, artist_name= None, number_of_songs=None, artist=None, fi
         with open(artist_name + '-lyrics-' + '(' + str(number_of_songs) + ')-' + timeString + '.txt', 'r',
                   encoding='utf-8') as f:
             contents = f.read()
+
     elif flag == 'file':
         with open(file_name, 'r', encoding='utf-8') as f:
             contents = f.read()
@@ -72,6 +74,7 @@ def cloud(text):
     plt.tight_layout(pad=0)
     return plt
 
+
 def delete_file(file_name):
     if os.path.exists(file_name):
         os.remove(file_name)
@@ -84,14 +87,12 @@ def delete_file(file_name):
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     bot.reply_to(message,
-                 f'Привет, {message.from_user.first_name}'
-                 '! Я - бот, который создает облако слов для песен любимого исполнителя с сайта genius.com '
-                 'или из Вашего файла. '
-                 'Чтобы я проанализировал песни исполнителя, введите /artist.  '
-                 'Чтобы я проанализировал ваш файл, введите /file'
-                 # 'Чтобы начать, отправь мне имя исполнителя и желаемое количество песен в формате:'
-                 # ' \'исполнитель:количество песен\'.'
-                 )
+                 f'Привет, {message.from_user.first_name}!\n'
+                 'Я - бот, который создает облако слов для песен любимого исполнителя с сайта genius.com '
+                 'или из Вашего файла.\n'
+                 'Чтобы я проанализировал песни исполнителя, введите /artist.\n'
+                 'Чтобы я проанализировал ваш файл, введите /file')
+
 
 
 @bot.message_handler(commands=['artist'])
@@ -109,7 +110,6 @@ def send_for_file(message):
 
 @bot.message_handler(content_types=['document'])
 def generate_wordcloud_file(message):
-
     file_name = message.document.file_name
 
     if not file_name.lower().endswith('.txt'):
@@ -138,15 +138,13 @@ def generate_wordcloud_file(message):
 
     file_name = file_name[:-4]
 
-    with open(file_name+'-RESULT'+'.txt', 'w', encoding='utf-8') as f:
+    with open(file_name + '-RESULT' + '.txt', 'w', encoding='utf-8') as f:
         for word in sorted_words:
             f.write(str(word).replace('(\'', '').replace('\', ', ' - ').replace(')', ''))
             f.write('\n')
 
-    with open(file_name+'-RESULT'+'.txt', 'r', encoding='utf-8') as f:
+    with open(file_name + '-RESULT' + '.txt', 'r', encoding='utf-8') as f:
         text = f.read()
-
-
 
     if not text:
         bot.reply_to(message, 'Вы отправили файл, не содержащий слов на русском. '
@@ -158,20 +156,18 @@ def generate_wordcloud_file(message):
     pict = cloud(text)
 
     # сохраняем график в файл
-    pict.savefig(file_name+'-RESULT', dpi=300)
+    pict.savefig(file_name + '-RESULT', dpi=300)
 
-    photo = open(file_name+'-RESULT'+'.png', 'rb')
+    photo = open(file_name + '-RESULT' + '.png', 'rb')
 
     # Отправляем фото пользователю
     bot.send_photo(message.chat.id, photo)
     photo.close()
 
     # Пример вызова функции для удаления файла 'example.txt'
-    delete_file(file_name + '-RESULT'+'.png')
+    delete_file(file_name + '-RESULT' + '.png')
     delete_file(file_name + '.txt')
     delete_file(file_name + '-RESULT' + '.txt')
-
-
 
     print("Готово!")
 
@@ -239,7 +235,6 @@ def generate_wordcloud_artist(message):
     with open(artist_name + '-RESULT-' + '(' + str(number_of_songs) + ')-' + timeString + '.txt', 'r',
               encoding='utf-8') as f:
         text = f.read()
-
 
     # создаем объект WordCloud с заданными параметрами
     pict = cloud(text)
